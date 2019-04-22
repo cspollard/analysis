@@ -26,8 +26,11 @@ type MooreK m = Moore (Kleisli m)
 
 -- fixity?
 infixr 2 ->|
-(->|) :: Arrow arr => Mealy arr i i' -> Moore arr i' o -> Moore arr i o
-m ->| Moore (o, m') = Moore (o, m >>> m')
+(->>|) :: Arrow arr => Mealy arr i i' -> Moore arr i' o -> Moore arr i o
+m ->>| Moore (o, m') = Moore (o, m >>> m')
+
+(->|) :: (Profunctor arr, Arrow arr) => arr i i' -> Moore arr i' o -> Moore arr i o
+(->|) a = (->>|) (liftA a)
 
 
 mealy = Mealy
@@ -36,6 +39,12 @@ moore b = Moore . (b,)
 
 neglect :: Moore arr i o -> Mealy arr i o
 neglect = step >>> snd
+
+chomp :: Moore arr i o -> (arr i (Moore arr i o))
+chomp = neglect >>> feed
+
+chompK :: MooreK m i o -> i -> m (MooreK m i o)
+chompK = runKleisli . chomp
 
 feedK :: MealyK m i o -> i -> m (MooreK m i o)
 feedK m = runKleisli $ feed m
@@ -58,16 +67,22 @@ feedback' (Moore (b, m)) = Moore (b, feedback m b)
 -- Foldable is special to (->) and Kleisli somehow?
 -- somehow this is particular to Hask
 
-chompF :: Foldable f => MooreF a b -> MooreF (f a) b
-chompF m@(Moore (b, _)) = Moore (b, Mealy f)
-  where
-    f xs = chompF $ foldl (\g x -> feed (neglect g) x) m xs
+-- I think this boilerplate could be reduces.
+-- we see this idea of e.g. chompsF being applied recursively.
+-- surely this is happening other places?
+-- is it related to feedback somehow?
 
 
-chompK :: (Foldable f, Monad m) => MooreK m i o -> MooreK m (f i) o
-chompK m@(Moore (b, _)) = Moore (b, Mealy $ Kleisli f)
+chompsF :: Foldable f => MooreF a b -> MooreF (f a) b
+chompsF m@(Moore (b, _)) = Moore (b, Mealy f)
   where
-    f xs = chompK <$> foldlM (\g x -> feedK (neglect g) x) m xs
+    f xs = chompsF $ foldl (\g x -> feed (neglect g) x) m xs
+
+
+chompsK :: (Foldable f, Monad m) => MooreK m i o -> MooreK m (f i) o
+chompsK m@(Moore (b, _)) = Moore (b, Mealy $ Kleisli f)
+  where
+    f xs = chompsK <$> foldlM (\g x -> feedK (neglect g) x) m xs
 
 
 hoistMealy
@@ -97,7 +112,11 @@ simplify' = hoistMoore $ fmap runIdentity <<< runKleisli
 
 
 liftA :: Profunctor arr => arr a b -> Mealy arr a b
-liftA p = Mealy $ rmap (\b' -> Moore . (b',) $ liftA p) p
+liftA p = r where r = Mealy $ rmap (\b' -> Moore . (b',) $ r) p
+
+
+lowerA :: Profunctor arr => Mealy arr a b -> arr a b
+lowerA (Mealy f) = rmap copoint f
 
 
 liftF :: (a -> b) -> MealyF a b
