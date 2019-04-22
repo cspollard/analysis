@@ -15,7 +15,7 @@ module Moore
   , feed, feedF, feedK
   , chompF, chompK
   , poop, poopF, poopK
-  , feedback
+  , feedback, accum
   , Kleisli(..)
   , hoistMoore, generalize, simplify
   , Thread(..)
@@ -84,6 +84,9 @@ feedback (Moore' x fx fio) =
     mi' <- fio -< (o, i)
     returnA -< feedback mi'
 
+accum :: Arrow arr => (arr (o, i) o) -> o -> Moore' arr i o
+accum f o = feedback $ moore' f o
+
 
 hoistMoore
   :: (Profunctor arr, Profunctor arr')
@@ -128,6 +131,7 @@ infixr 1 <<|
 (<<|) :: (Category arr, Thread arr m) => arr o o' -> m i o -> m i o'
 (<<|) = flip (|>>)
 
+
 instance Profunctor arr => Profunctor (Moore' arr) where
   dimap f g (Moore' x fx fi) = Moore' x (rmap g fx) (dimap f (dimap f g) fi)
 
@@ -147,44 +151,3 @@ instance (Profunctor arr, Arrow arr) => Applicative (Moore' arr a) where
       hi' = proc i -> do
         (mfab, ma) <- (gi &&& hi) -< i
         returnA -< mfab <*> ma
-
-
-
--- instance (Profunctor p, Arrow p) => Pointed (Moore' p a) where
---   point = pure
---
---
--- instance Copointed (Moore' p a) where
---   copoint (Moore' (b, _)) = b
---
---
--- -- instance (Category p, Profunctor p) => Comonad (Moore' p a) where
--- --   extract (Moore' (b, _)) = b
--- --   extend f w@(Moore' (_, g)) = Moore' (f w, extend f . g)
--- --
--- --
--- -- folding :: Arrow p => p (b, a) b -> b -> Moore' p a b
--- -- folding f b = Moore' (b, go b f)
--- --   where
--- --     go :: Arrow p => c -> p (c, a) c -> p a (Moore' p a c)
--- --     go c g = proc a -> do
--- --       c' <- g -< (c, a)
--- --       returnA -< Moore' (c', go c' g)
--- --
--- --
--- -- liftA :: Profunctor p => p a b -> b -> Moore' p a b
--- -- liftA p b = Moore' (b, rmap (\b' -> liftA p b') p)
--- --
--- -- extract :: Moore' p a b -> b
--- -- extract (Moore' (b, _)) = b
--- --
--- -- feed :: Moore' p a b -> p a (Moore' p a b)
--- -- feed (Moore' (_, f)) = f
--- --
--- --
--- -- runF :: Moore' (->) a b -> a -> b
--- -- runF (Moore' (_, f)) a = fst . runMoore' $ (f $ a)
--- --
--- --
--- -- runM :: Functor m => Moore' (Kleisli m) a b -> a -> m b
--- -- runM (Moore' (_, k)) a = fmap (fst . runMoore') $ k `runKleisli` a
