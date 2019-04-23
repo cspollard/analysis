@@ -16,6 +16,7 @@ module Moore
   , chompF, chompK
   , poop, poopF, poopK
   , feedback, accum
+  , foldMoore, foldMooreK
   , Kleisli(..)
   , hoistMoore, generalize, simplify
   , Thread(..)
@@ -24,12 +25,8 @@ module Moore
 
 import           Control.Arrow
 import           Control.Category
-import           Data.Bifunctor
-import           Data.Bifunctor.Biff
-import           Data.Bifunctor.Join
-import           Data.Copointed
+import           Data.Foldable
 import           Data.Functor.Identity
-import           Data.Pointed
 import           Data.Profunctor
 import           Prelude               hiding (id, (.))
 
@@ -87,6 +84,8 @@ feedback (Moore' x fx fio) =
 accum :: Arrow arr => (arr (o, i) o) -> o -> Moore' arr i o
 accum f o = feedback $ moore' f o
 
+accumF :: (o -> i -> o) -> o -> Moore i o
+accumF = accum . uncurry
 
 hoistMoore
   :: (Profunctor arr, Profunctor arr')
@@ -99,6 +98,15 @@ generalize = hoistMoore arr
 
 simplify :: MooreK Identity i o -> Moore i o
 simplify = hoistMoore (fmap runIdentity . runKleisli)
+
+
+foldMoore :: Foldable f => Moore a b -> Moore (f a) b
+foldMoore m@(Moore' x fx fi) = Moore' x fx . rmap foldMoore $ foldl feedF m
+
+
+foldMooreK :: (Foldable f, Monad m) => MooreK m a b -> MooreK m (f a) b
+foldMooreK m@(Moore' x fx fi) = Moore' x fx . rmap foldMooreK $ Kleisli (foldlM feedK m)
+
 
 
 class Thread arr m | m -> arr where
@@ -115,19 +123,19 @@ instance Arrow arr => Thread arr (Moore' arr) where
     Moore' x (fx >>> g) (f >>> fi >>> arr (thread f g))
 
 
-infixr 1 >>|
+infixr 2 >>|
 (>>|) :: (Category arr, Thread arr m) => arr i' i -> m i o -> m i' o
 f >>| m = thread f id m
 
-infixr 1 |<<
+infixr 2 |<<
 (|<<) :: (Category arr, Thread arr m) => m i o -> arr i' i -> m i' o
 (|<<) = flip (>>|)
 
-infixr 1 |>>
+infixr 2 |>>
 (|>>) :: (Category arr, Thread arr m) => m i o -> arr o o' -> m i o'
 m |>> f = thread id f m
 
-infixr 1 <<|
+infixr 2 <<|
 (<<|) :: (Category arr, Thread arr m) => arr o o' -> m i o -> m i o'
 (<<|) = flip (|>>)
 

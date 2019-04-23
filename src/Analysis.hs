@@ -19,8 +19,8 @@ import           Prelude          hiding (id, (.))
 monoidal :: Monoid m => Moore m m
 monoidal = accum (uncurry mappend) mempty
 
-counter :: Moore a (Sum Int)
-counter = const 1 >>| monoidal
+counter :: Enum b => b -> Moore a b
+counter b = accum (\(b', a) -> succ b') b
 
 sink :: Moore a ()
 sink = const () >>| monoidal
@@ -32,7 +32,6 @@ indexKeyed :: Adjustable f => IndexF f ((,) (Key f))
 indexKeyed combine as (k, b) = adjust (flip combine b) k as
 
 
-
 indexMoore :: Functor f => IndexF f g -> f (Moore i o) -> Moore (g i) (f o)
 indexMoore indexf ms =
   Moore ms (fmap poopF) (indexMoore indexf <<< indexf feedF ms)
@@ -40,7 +39,6 @@ indexMoore indexf ms =
 
 histogram :: Adjustable f => f (Moore a b) -> Moore (Key f, a) (f b)
 histogram start = indexMoore indexKeyed start
-
 
 
 
