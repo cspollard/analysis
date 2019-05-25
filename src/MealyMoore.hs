@@ -1,13 +1,10 @@
 {-# LANGUAGE Arrows                    #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE PatternSynonyms           #-}
-{-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
-{-# LANGUAGE TupleSections             #-}
 
-module MealyMoore1 where
+module MealyMoore where
 
 import           Control.Arrow
 import           Control.Category

@@ -16,7 +16,7 @@ import           Data.Map.Merge.Strict
 import           Data.Map.Strict       (Map (..))
 import           Data.Monoid           (Sum (..))
 import           Data.Variation
-import           MealyMoore1
+import           MealyMoore
 import           Prelude               hiding (id, (.))
 import           Thread
 
