@@ -23,6 +23,7 @@ dependencies:
 - base >= 4.7 && < 5
 - free
 - lens
+- variation
 - containers
 - keys
 - recursion-schemes
@@ -30,6 +31,7 @@ dependencies:
 - profunctors
 - bifunctors
 - comonad
+- these
 - pointed
 
 library:
