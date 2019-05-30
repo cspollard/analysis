@@ -7,8 +7,7 @@ module Analysis where
 
 import           Control.Arrow
 import           Control.Category
-import           Control.Lens
-import           Data.Align
+-- import           Data.Align
 import           Data.Coerce
 import           Data.Foldable
 import           Data.Key
@@ -45,7 +44,7 @@ indexMoore :: Functor f => IndexF f g -> f (Moore' i o) -> Moore' (g i) (f o)
 indexMoore indexf ms =
   moore (poop <$> ms) m
     where
-      m = Mealy $ indexMoore indexf <<< indexf (chomp >>> runMealy) ms
+      m = Mealy $ indexf chomp ms >>> indexMoore indexf
 
 
 histogram :: Adjustable f => f (Moore' a b) -> Moore' (Key f, a) (f b)
