@@ -22,11 +22,11 @@ import           Thread
 
 
 monoidal :: Monoid m => Moore' m m
-monoidal = feedback $ Moore mempty id (arr $ uncurry mappend)
+monoidal = feedback $ Moore (arr $ uncurry (<>)) mempty
 
 
 counter :: Enum b => b -> Moore' a b
-counter b = feedback <<< Moore b id <<< arr $ \(b', a) -> succ b'
+counter b = feedback <<< flip Moore b <<< arr $ \(b', a) -> succ b'
 
 
 sink :: Moore' a ()
@@ -39,12 +39,11 @@ type IndexF f g = forall a b. (a -> b -> a) -> f a -> g b -> f a
 indexKeyed :: Adjustable f => IndexF f ((,) (Key f))
 indexKeyed combine as (k, b) = adjust (flip combine b) k as
 
-
 indexMoore :: Functor f => IndexF f g -> f (Moore' i o) -> Moore' (g i) (f o)
 indexMoore indexf ms =
-  moore (poop <$> ms) m
+  Moore m (poop <$> ms)
     where
-      m = Mealy $ indexf chomp ms >>> indexMoore indexf
+      m = Mealy $ indexf (curry chomp) ms >>> indexMoore indexf
 
 
 histogram :: Adjustable f => f (Moore' a b) -> Moore' (Key f, a) (f b)

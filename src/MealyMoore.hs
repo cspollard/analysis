@@ -18,7 +18,7 @@ import           Prelude               hiding (id, (.))
 
 newtype Mealy arr i o = Mealy { runMealy :: arr i (Moore arr i o) }
 
-data Moore arr i o = forall x. Moore !x !(arr x o) !(Mealy arr i o)
+data Moore arr i o = Moore !(Mealy arr i o) !o
 
 
 type Mealy' = Mealy (->)
@@ -27,66 +27,46 @@ type Moore' = Moore (->)
 type MooreK m = Moore (Kleisli m)
 
 
-mealy :: arr i (Moore arr i o) -> Mealy arr i o
-mealy = Mealy
-
-
-moore :: Category arr => o -> Mealy arr i o -> Moore arr i o
-moore o = Moore o id
-
-
 simple :: Arrow arr => arr i o -> Mealy arr i o
 simple f = m
   where
-    m = mealy $ arr (flip moore m) . f
+    m = Mealy $ f >>> arr (Moore m)
 
 
 pop :: Moore arr i o -> Mealy arr i o
-pop (Moore _ _ m) = m
+pop (Moore m _) = m
 
 
-poop :: ArrowApply arr => arr (Moore arr i o) o
-poop = proc m -> do
-  (Moore x fx _) <- id -< m
-  app -< (fx, x)
+poop :: Moore arr i o -> o
+poop (Moore _ o) = o
 
 
-unpack :: (ArrowChoice arr, ArrowApply arr) => arr (Moore arr i o) (o, Mealy arr i o)
-unpack = poop &&& arr pop
+chomp :: ArrowApply arr => arr (Moore arr i o, i) (Moore arr i o)
+chomp = proc (Moore (Mealy m) _, i) -> do
+  app -< (m, i)
 
 
-lower :: (ArrowChoice arr, ArrowApply arr) => arr (Mealy arr a b) (arr a b)
-lower = proc  m -> do
-  m' <- arr runMealy -< m
-  returnA -< m' >>> poop
+lower :: Arrow arr => Mealy arr i o -> arr i o
+lower (Mealy m) = m >>> arr poop
 
 
-feedback :: (ArrowChoice arr, ArrowApply arr) => arr (Moore arr (o, i) o) (Moore arr i o)
-feedback = proc m -> do
-  (o, m') <- unpack -< m
-  returnA -< Moore o id $ feedback' m' o
+feedback :: Arrow arr => Moore arr (o, i) o -> Moore arr i o
+feedback (Moore m o) = Moore m' o
+  where
+    m' = feedback' m o
 
 
-feedback' :: (ArrowChoice arr, ArrowApply arr) => Mealy arr (o, i) o -> o -> Mealy arr i o
+feedback' :: Arrow arr => Mealy arr (o, i) o -> o -> Mealy arr i o
 feedback' (Mealy m) o = Mealy $ proc i -> do
-  m' <- m -< (o, i)
-  feedback -< m'
+  arr feedback <<< m -< (o, i)
 
 
-
-
--- chomp :: Moore arr i o -> arr i (Moore arr i o)
--- chomp (Moore _ _ (Mealy m)) = m
---
---
---
---
 
 instance Profunctor arr => Profunctor (Mealy arr) where
   dimap f g (Mealy m) = Mealy $ dimap f (dimap f g) m
 
 instance Profunctor arr => Profunctor (Moore arr) where
-  dimap f g (Moore x fx m) = Moore x (rmap g fx) (dimap f g m)
+  dimap f g (Moore m o) = Moore (dimap f g m) (g o)
 
 
 instance Profunctor arr => Functor (Mealy arr i) where
@@ -96,45 +76,36 @@ instance Profunctor arr => Functor (Moore arr i) where
   fmap = rmap
 
 
-instance ArrowApply arr => Category (Mealy arr) where
-  id = r where r = Mealy . arr $ \i -> Moore i id r
+instance Arrow arr => Category (Mealy arr) where
+  id = r where r = Mealy <<< arr $ \i -> Moore r i
 
-  -- TODO
-  -- here
-  Mealy f . Mealy g = r
-    where
-      r = Mealy $ proc i -> do
-            Moore x fx m <- g -< i
-            Moore x' fx' m' <- f <<< app -< (fx, x)
-            returnA -< Moore x' fx' (m' . m)
+  Mealy f . Mealy g =
+    Mealy $ proc i -> do
+      Moore m o <- g -< i
+      Moore m' o' <- f -< o
+      returnA -< Moore (m' . m) o'
 
 
--- instance ArrowApply arr => Arrow (Mealy arr) where
---   arr f = r where r = Mealy . arr $ \i -> Moore i (arr f) r
---
---   first (Mealy m) = Mealy $ proc (i, d) -> do
---     Moore x fx m' <- m -< i
---     returnA -< Moore (x, d) (first fx) (first m')
+instance Arrow arr => Arrow (Mealy arr) where
+  arr = simple . arr
+
+  Mealy f *** Mealy f' = Mealy $ proc i -> do
+    (Moore m o, Moore m' o') <- f *** f' -< i
+    returnA -< Moore (m *** m') (o, o')
 
 
 instance (Profunctor arr, Arrow arr) => Applicative (Mealy arr i) where
   pure o = Mealy . arr $ \_ -> pure o
 
-  Mealy mf <*> Mealy mx =
-    Mealy $ proc i -> do
-      mx' <- mx -< i
-      mf' <- mf -< i
-      returnA -< mf' <*> mx'
+  Mealy mf <*> Mealy mx = Mealy $ (mf &&& mx) >>> arr (uncurry (<*>))
 
 
 instance (Profunctor arr, Arrow arr) => Applicative (Moore arr i) where
-  pure o = Moore o id (pure o)
+  pure o = Moore (pure o) o
 
-  Moore x fx m <*> Moore x' fx' m' = Moore (x, x') g (m <*> m')
-    where g = proc (y, y') -> do
-                fa <- fx -< y
-                a <- fx' -< y'
-                returnA -< fa a
+  Moore mf f <*> Moore mx x = Moore (mf <*> mx) (f x)
+
+
 --
 --
 -- instance ArrowApply arr => ArrowChoice (Mealy arr) where
