@@ -34,10 +34,15 @@ sink = pure ()
 
 
 type IndexF f g = forall a b. (a -> b -> a) -> f a -> g b -> f a
+-- type IndexA arr f g = forall a b. arr (a, b) a -> arr (f a, g b) f a
 
 
 indexKeyed :: Adjustable f => IndexF f ((,) (Key f))
 indexKeyed combine as (k, b) = adjust (flip combine b) k as
+
+-- indexAKeyed :: IndexA arr f ((,) (Key f))
+-- indexAKeyed
+
 
 indexMoore :: Functor f => IndexF f g -> f (Moore' i o) -> Moore' (g i) (f o)
 indexMoore indexf ms =
@@ -46,8 +51,9 @@ indexMoore indexf ms =
       m = Mealy $ indexf (curry chomp) ms >>> indexMoore indexf
 
 
-histogram :: Adjustable f => f (Moore' a b) -> Moore' (Key f, a) (f b)
-histogram start = indexMoore indexKeyed start
+histogram :: Adjustable f => f (Moore' i o) -> Moore' (Key f, i) (f o)
+histogram = indexMoore indexKeyed
+
 
 
 -- indexMooreK

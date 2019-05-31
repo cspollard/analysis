@@ -1,7 +1,7 @@
 {-# LANGUAGE Arrows                    #-}
 {-# LANGUAGE ExistentialQuantification #-}
--- {-# LANGUAGE FlexibleInstances         #-}
--- {-# LANGUAGE MultiParamTypeClasses     #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE PatternSynonyms           #-}
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
@@ -13,7 +13,7 @@ import           Control.Category
 import           Data.Functor.Identity
 import           Data.Profunctor
 import           Prelude               hiding (id, (.))
--- import           Thread
+import           Thread
 
 
 newtype Mealy arr i o = Mealy { runMealy :: arr i (Moore arr i o) }
@@ -106,23 +106,22 @@ instance (Profunctor arr, Arrow arr) => Applicative (Moore arr i) where
   Moore mf f <*> Moore mx x = Moore (mf <*> mx) (f x)
 
 
+instance Arrow arr => Thread arr (Mealy arr) where
+  thread f f' (Mealy m) = Mealy $ proc i -> do
+    Moore m' o <- m <<< f -< i
+    o' <- f' -< o
+    returnA -< Moore (thread f f' m') o'
+
+-- instance Arrow arr => Thread arr (Moore arr) where
+--   thread f f' (Moore x fx m) = Moore (thread f f' m) (fx >>> f') $ thread f f' m
+
+
 --
 --
 -- instance ArrowApply arr => ArrowChoice (Mealy arr) where
 --   f +++ g = (f >>> arr Left) ||| (g >>> arr Right)
 --
 --
--- -- instance ArrowApply arr => Thread arr (Mealy arr) where
--- --   thread f f' (Mealy m) = Mealy (f >>> m')
--- --     where
--- --       m' = proc i -> do
--- --             Moore x fx m'' <- m -< i
--- --             o' <- f' <<< app -< (fx, x)
--- --             returnA -< moore o' $ thread f f' m''
--- --
--- --
--- -- instance ArrowApply arr => Thread arr (Moore arr) where
--- --   thread f f' (Moore x fx m) = Moore x (fx >>> f') $ thread f f' m
 --
 --
 -- hoistMealy
